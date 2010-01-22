@@ -1,6 +1,7 @@
 ---
 channels:
   - name: '#foodev'
+  - name: '#ecl'
 nick: halbot
 nickserv_pass: dd3b57f9e6c105c30ff
 username: computer
