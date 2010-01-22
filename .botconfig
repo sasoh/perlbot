@@ -1,0 +1,13 @@
+---
+channels:
+  - name: '#foodev'
+nick: halbot
+nickserv_pass: dd3b57f9e6c105c30ff
+username: computer
+ircname: Hello, Dave
+port: 7001
+server: irc.ecl-labs.org
+ssl: yes
+destdir: ./files
+botlog: ./halbot.log
+picurl: http://vanity.ecl-labs.org/~sasoh/pile
