@@ -15,6 +15,8 @@ use File::ReadBackwards;
 use YAML qw 'LoadFile DumpFile';
 use Data::Dumper;
 use IPC::System::Simple qw(capturex system $EXITVAL EXIT_ANY);
+use DBI;
+
 
 
 use HALBot::PrettyPrint;
@@ -48,7 +50,16 @@ sub load_config () {
     };
 }
 
+my $dbh;
+sub init_db () { 
+    $dbh = DBI->connect("dbi:SQLite:dbname=". $config->{botdb},"","");
 
+    unless ($dbh) {
+        halbot_critical("Cannot open database at $config->{botdb}.");
+        exit(1);
+    }
+
+}
 
 sub BOOTMSG {
     my @bootmsg = (
@@ -78,19 +89,23 @@ sub snatch_file ($$$$) {
     if ($download == 200) {                 #magic number for all done
         # Find out what it is that we just got!
         # Boy, it shure would be nice to use POE::Wheel::Run here... 
-        my $fileinfo = capturex(EXIT_ANY, "file", ('-b', $saved_file));
+        my $filetype = capturex(EXIT_ANY, "file", ('-b', $saved_file));
+        my $fileinfo = '';
         if ( $EXITVAL == 0 ) {
-            chomp($fileinfo) foreach (1..2);
-            $fileinfo = "Its a $fileinfo.";
-        } else {
-            $fileinfo = '';
+            chomp($filetype) foreach (1..2);
+            $fileinfo = "Its a $filetype.";
         }
 
         $irc->yield(privmsg => $chan, "Got the file, Dave. $fileinfo");
 
-        open LOGFILE, '>>'.$config->{botlog} or die "Can't open log file!\n";
-        print LOGFILE "[$ts] Got $url for $usrNick\n";
-        close LOGFILE;
+        # Stuff it into the DB
+        my $sth = $dbh->prepare('INSERT INTO urls (nick, filename, filetype, source) VALUES (?,?,?,?)'); 
+        $sth->execute($usrNick, basename($url), $filetype, $url);
+    
+        if ($dbh->err()) { 
+            halbot_critical("Error inserting data into the database: $DBI::errstr"); 
+            $irc->yield(shutdown => "SIGBUS");
+        }
 
         halbot_info("Got file \"$url\" for $usrNick. $fileinfo");
     } else {
@@ -101,22 +116,21 @@ sub snatch_file ($$$$) {
 
 sub lastnlines ($$) {
     my ($chan, $lines) = @_;
-    my $parser = File::ReadBackwards->new($config->{botlog}) or die "Can't open log file for parsing!\n";
-    my $hpg = 0;
-    my $log_line = '';
-    # To sasoh:
-    # That might be sexier in a foreach (1..$lines) { ... }
-    while (defined($log_line = $parser->readline) && $hpg < $lines) {
-        if ($log_line =~ /\[(.+)\] Got (http:\/\/.+\.(jpg|jpeg|png|bmp|gif|swf)) for .+/) {
-            my $picname = basename($2);
-            $irc->yield(privmsg => $chan, "Got $config->{picurl}/$picname at $1");
-            ++$hpg;
-        }
+
+    my $sth = $dbh->prepare('SELECT * FROM urls ORDER BY url_id DESC LIMIT ?;');
+    
+    $sth->execute($lines);
+
+    if ($dbh->err()) { 
+        halbot_critical("Error querying data from the database: $DBI::errstr"); 
+        $irc->yield(shutdown => "SIGBUS");
     }
-    if ($hpg < $lines) {
-        $irc->yield(privmsg => $chan, "No previous item");
+
+    while (my $url = $sth->fetchrow_hashref) {
+        my $picname = basename($url->{source});
+        $irc->yield(privmsg => $chan, "Got $config->{picurl}/$picname at $url->{timestamp}");
     }
-    $parser->close;
+
 }
 
 sub PrintHelp ($) {
@@ -173,10 +187,8 @@ sub on_public {
     }
     #kill code
     if ($msg =~ /^Open the pod bay doors, HAL/i) {
-        $irc->yield(unregister => "all");
         halbot_info("Remote shutdown by $usrNick");
-        $irc->yield(quit => "Just what do you think you're doing, Dave?");
-        exit(0);
+        $irc->yield(shutdown => "Just what do you think you're doing, Dave?");
     }
 }
 
@@ -194,6 +206,8 @@ halbot_info("/" . "-"x40);
 halbot_info("HAL9000 starting...");
 
 load_config();
+
+init_db();
 
 $irc = POE::Component::IRC->spawn();
 
