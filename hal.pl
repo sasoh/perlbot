@@ -17,8 +17,6 @@ use Data::Dumper;
 use IPC::System::Simple qw(capturex system $EXITVAL EXIT_ANY);
 use DBI;
 
-
-
 use HALBot::PrettyPrint;
 
 srand(time());

@@ -1,0 +1,8 @@
+HAL9000 IRC Bot
+ECL Labs 2010
+
+To run the beast, edit the .botconfig file and create a database by issuing:
+sqlite3 db/bot.db < db/db_format.sql
+
+
+

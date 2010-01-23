@@ -1,7 +1,6 @@
 ---
 channels:
   - name: '#foodev'
-  - name: '#ecl'
 nick: halbot
 nickserv_pass: dd3b57f9e6c105c30ff
 username: computer
@@ -10,5 +9,5 @@ port: 7001
 server: irc.ecl-labs.org
 ssl: yes
 destdir: ./files
-botlog: ./halbot.log
 picurl: http://vanity.ecl-labs.org/~sasoh/pile
+botdb: ./db/bot.db
