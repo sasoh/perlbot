@@ -8,14 +8,18 @@ use warnings;
 use strict;
 use POE;
 use POE::Component::IRC;
-use Switch;
-use LWP::Simple;
-use File::Basename;
-use File::ReadBackwards;
+use POE::Component::SSLify;
+
 use YAML qw 'LoadFile DumpFile';
 use Data::Dumper;
+
+use Switch;
+use LWP::Simple;
 use IPC::System::Simple qw(capturex system $EXITVAL EXIT_ANY);
+
+use File::Basename;
 use DBI;
+use DBD::SQLite;
 
 use HALBot::PrettyPrint;
 
@@ -46,6 +50,13 @@ sub load_config () {
         halbot_error("Config file not found or broken."); 
         exit(1);
     };
+
+    if (defined $ARGV[0]) {
+        if ($ARGV[0] eq "-d") {
+            print Dumper $config;
+            exit(1);
+        }
+    }
 }
 
 my $dbh;
