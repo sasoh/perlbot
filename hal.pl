@@ -42,6 +42,8 @@ my $config;
 
 my $irc;
 
+my $usrsubs = {};
+
 sub load_config () {
     halbot_info("Loading configuration...");
     eval {
@@ -147,9 +149,42 @@ sub PrintHelp ($) {
     my $helpstr = "Hello Dave, here's my interface:\n" .
                   "- \"<remote image path>\" makes me download a file and store it.\n" .
                   "- \"Open the pod bay doors, HAL\" makes me go to sleep.\n" .
-                  "- \"Last 3 files, HAL\" makes me give you links to the last 3 downloaded files.\n" .
+                  "- \"Last n files, HAL\" makes me give you links to the last n downloaded files.\n" .
                   "- \"Help me, HAL\" makes me print these lines";
     $irc->yield(privmsg => $chan, $helpstr);
+}
+
+sub evalreq ($$$) {
+    my ($chan, $nick, $expr) = @_;
+    my $resp = eval($expr);
+    if (!$resp) {
+        $resp = "fail." if !$resp;
+        $irc->yield(privmsg => $nick => $resp);
+    } else {
+        my $rowcount = scalar split /\n/, $resp;
+        if ($rowcount > 3) {
+            $irc->yield(privmsg => $nick => $resp);
+        } else {
+            $irc->yield(privmsg => $chan, $resp);
+        }
+    }
+}
+
+sub intsig {
+    $irc->yield(shutdown => "Just what do you think you're doing, Dave?");
+}
+
+sub addsub ($$$$) {
+    my ($chan, $nick, $subname, $subval) = @_;
+    $usrsubs->{$subname} = eval $subval;
+}
+
+sub execsub ($$$) {
+    my ($chan, $nick, $subname) = @_;
+    my $subval = $usrsubs->{$subname};
+    if ($subval) {
+        $irc->yield(privmsg => $chan, $subval->());
+    }
 }
 
 sub bot_start {
@@ -192,8 +227,21 @@ sub on_public {
     }
     #help req
     if ($msg =~ /^Help me, HAL/i) {
-       PrintHelp($chan);
+        PrintHelp($chan);
     }
+    #eval func
+    if ($msg =~ /^$config->{nick}, eval (.+)/i) {
+        evalreq($chan, $usrNick, $1);
+    }
+    #addsub
+    if ($msg =~ /^$config->{nick}, addsub (.+), (.+)/i) {
+        addsub($chan, $usrNick, $1, $2);
+    }
+    #exec sub
+    if ($msg =~ /^$config->{nick}, (.+)/i) {
+        execsub($chan, $usrNick, $1);
+    }
+    #madurgi!
     #kill code
     if ($msg =~ /^Open the pod bay doors, HAL/i) {
         halbot_info("Remote shutdown by $usrNick");
@@ -230,5 +278,7 @@ POE::Session->create(
 );
 
 halbot_info("Connecting cognitive circuits...");
+$SIG{INT} = \&intsig;
+$SIG{TERM} = \&intsig;
 $poe_kernel->run();
 exit 0;
