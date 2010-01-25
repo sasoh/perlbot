@@ -158,8 +158,13 @@ sub evalreq ($$$) {
     my ($chan, $nick, $expr) = @_;
     my $resp = eval($expr);
     if (!$resp) {
-        $resp = "fail." if !$resp;
-        $irc->yield(privmsg => $nick => $resp);
+        $resp = $@ if !$resp;
+        my $rowcount = scalar split /\n/, $resp;
+        if ($rowcount > 2) {
+            $irc->yield(privmsg => $nick => $resp);
+        } else {
+            $irc->yield(privmsg => $chan, $resp);
+        }
     } else {
         my $rowcount = scalar split /\n/, $resp;
         if ($rowcount > 3) {
