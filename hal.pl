@@ -44,6 +44,8 @@ my $irc;
 
 my $usrsubs = {};
 
+my $usrtags = {};
+
 sub load_config () {
     halbot_info("Loading configuration...");
     eval {
@@ -154,7 +156,7 @@ sub PrintHelp ($) {
     $irc->yield(privmsg => $chan, $helpstr);
 }
 
-sub evalreq ($$$) {
+sub eval_req ($$$) {
     my ($chan, $nick, $expr) = @_;
     my $resp = eval($expr);
     if (!$resp) {
@@ -179,16 +181,29 @@ sub intsig {
     $irc->yield(shutdown => "Just what do you think you're doing, Dave?");
 }
 
-sub addsub ($$$$) {
+sub add_sub ($$$$) {
     my ($chan, $nick, $subname, $subval) = @_;
     $usrsubs->{$subname} = eval $subval;
 }
 
-sub execsub ($$$) {
+sub exec_sub ($$$) {
     my ($chan, $nick, $subname) = @_;
     my $subval = $usrsubs->{$subname};
     if ($subval) {
         $irc->yield(privmsg => $chan, $subval->());
+    }
+}
+
+sub add_tag ($$$$) {
+    my ($chan, $nick, $tag, $tag_text) = @_;
+    $usrtags->{$tag} = $tag_text;
+}
+
+sub print_tag ($$$) {
+    my ($chan, $nick, $tag) = @_;
+    my $subval = $usrtags->{$tag};
+    if ($subval) {
+        $irc->yield(privmsg => $chan, $subval);
     }
 }
 
@@ -236,17 +251,24 @@ sub on_public {
     }
     #eval func
     if ($msg =~ /^$config->{nick}, eval (.+)/i) {
-        evalreq($chan, $usrNick, $1);
+        eval_req($chan, $usrNick, $1);
     }
     #addsub
     if ($msg =~ /^$config->{nick}, addsub (.+), (.+)/i) {
-        addsub($chan, $usrNick, $1, $2);
+        add_sub($chan, $usrNick, $1, $2);
     }
     #exec sub
     if ($msg =~ /^$config->{nick}, (.+)/i) {
-        execsub($chan, $usrNick, $1);
+        exec_sub($chan, $usrNick, $1);
     }
-    #madurgi!
+    #add tag
+    if ($msg =~ /^$config->{nick}, addtag @(.+)\b (.+)/i) {
+        add_tag($chan, $usrNick, $1, $2);
+    }
+    #print tag
+    if ($msg =~ /^@(.+)/i) {
+        print_tag($chan, $usrNick, $1);
+    }
     #kill code
     if ($msg =~ /^Open the pod bay doors, HAL/i) {
         halbot_info("Remote shutdown by $usrNick");
