@@ -221,8 +221,6 @@ sub print_tag ($$$) {
     }
     if (my $tag_text = $sth->fetchrow_hashref) {
         $irc->yield(privmsg => $chan, $tag_text->{text});
-    } else {
-        halbot_debug('no record found');
     }
 }
 
