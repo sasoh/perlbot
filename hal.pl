@@ -196,14 +196,33 @@ sub exec_sub ($$$) {
 
 sub add_tag ($$$$) {
     my ($chan, $nick, $tag, $tag_text) = @_;
-    $usrtags->{$tag} = $tag_text;
+    my $lookup = $dbh->prepare('SELECT tag_id FROM tags WHERE tag = ?');
+    $lookup->execute($tag);
+    if ($lookup->fetchrow_hashref) {
+        my $sth = $dbh->prepare('UPDATE tags SET text = ? WHERE tag = ?');
+        $sth->execute($tag_text, $tag);
+    } else {
+        my $sth = $dbh->prepare('INSERT INTO tags (tag, text) VALUES (?,?)');
+        $sth->execute($tag, $tag_text);
+    }
+    if ($dbh->err()) {
+        halbot_critical("Error inserting data into the database: $DBI::errstr");
+        $irc->yield(shutdown => "SIGBUS");
+    }
 }
 
 sub print_tag ($$$) {
     my ($chan, $nick, $tag) = @_;
-    my $subval = $usrtags->{$tag};
-    if ($subval) {
-        $irc->yield(privmsg => $chan, $subval);
+    my $sth = $dbh->prepare('SELECT text FROM tags WHERE tag = ?;');
+    $sth->execute($tag);
+    if ($dbh->err()) {
+        halbot_critical("Error querying data from the database: $DBI::errstr");
+        $irc->yield(shutdown => "SIGBUS");
+    }
+    if (my $tag_text = $sth->fetchrow_hashref) {
+        $irc->yield(privmsg => $chan, $tag_text->{text});
+    } else {
+        halbot_debug('no record found');
     }
 }
 
@@ -262,7 +281,7 @@ sub on_public {
         exec_sub($chan, $usrNick, $1);
     }
     #add tag
-    if ($msg =~ /^$config->{nick}, addtag @(.+)\b (.+)/i) {
+    if ($msg =~ /^$config->{nick}, addtag @(.+), (.+)/i) {
         add_tag($chan, $usrNick, $1, $2);
     }
     #print tag
