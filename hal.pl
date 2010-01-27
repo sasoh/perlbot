@@ -320,6 +320,7 @@ POE::Session->create(
         irc_001    => \&on_connect,
         irc_public => \&on_public,
         irc_msg    => \&on_private,
+        irc_disconnected => \&bot_start, #pff
     },
 );
 
