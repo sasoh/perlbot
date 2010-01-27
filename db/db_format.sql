@@ -9,3 +9,11 @@ CREATE TABLE urls (
 
 CREATE UNIQUE INDEX url_id ON urls (url_id);
 CREATE UNIQUE INDEX timestamp ON urls (timestamp);
+
+CREATE TABLE tags (
+        tag_id INTEGER PRIMARY KEY,
+        tag VARCHAR(64),
+        text VARCHAR(255)
+        );
+
+CREATE UNIQUE INDEX tag_id ON tags (tag_id);
