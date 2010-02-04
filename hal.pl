@@ -155,7 +155,7 @@ sub PrintHelp ($) {
     my $helpstr = "Hello Dave, here's my interface:\n" .
                   "- \"<remote image path>\" makes me download a file and store it.\n" .
                   "- \"<url>\" makes me store the url.\n" .
-                  "- \"$config->{nick}, addtag @TAGNAME, TAG CONTENT\" makes me save a tag.\n" .
+                  "- \"$config->{nick}, addtag \@TAGNAME, TAG CONTENT\" makes me save a tag.\n" .
                   "- \"Open the pod bay doors, HAL\" makes me go to sleep.\n" .
                   "- \"Last n files\" makes me give you links to the last n downloaded files.\n" .
                   "- \"Last n urls\" makes me print out the last n urls.\n" .
