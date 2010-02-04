@@ -23,7 +23,11 @@ use DBD::SQLite;
 
 use HALBot::PrettyPrint;
 
+use WWW::Wikipedia;
+use Text::Stripper;
+
 srand(time());
+
 
 
 # This is where the config will live.
@@ -112,7 +116,7 @@ sub snatch_file ($$$$) {
         $irc->yield(privmsg => $chan, "Got the file, Dave. $fileinfo");
 
         # Stuff it into the DB
-        my $sth = $dbh->prepare('INSERT INTO urls (nick, filename, filetype, source) VALUES (?,?,?,?)'); 
+        my $sth = $dbh->prepare('INSERT INTO imgs (nick, filename, filetype, source) VALUES (?,?,?,?)');
         $sth->execute($usrNick, basename($url), $filetype, $url);
     
         if ($dbh->err()) { 
@@ -130,7 +134,7 @@ sub snatch_file ($$$$) {
 sub lastnlines ($$) {
     my ($chan, $lines) = @_;
 
-    my $sth = $dbh->prepare('SELECT * FROM urls ORDER BY url_id DESC LIMIT ?;');
+    my $sth = $dbh->prepare('SELECT * FROM imgs ORDER BY img_id DESC LIMIT ?;');
     
     $sth->execute($lines);
 
@@ -150,9 +154,12 @@ sub PrintHelp ($) {
     my $chan = shift;
     my $helpstr = "Hello Dave, here's my interface:\n" .
                   "- \"<remote image path>\" makes me download a file and store it.\n" .
+                  "- \"<url>\" makes me store the url.\n" .
+                  "- \"$config->{nick}, addtag @TAGNAME, TAG CONTENT\" makes me save a tag.\n" .
                   "- \"Open the pod bay doors, HAL\" makes me go to sleep.\n" .
-                  "- \"Last n files, HAL\" makes me give you links to the last n downloaded files.\n" .
-                  "- \"Help me, HAL\" makes me print these lines";
+                  "- \"Last n files\" makes me give you links to the last n downloaded files.\n" .
+                  "- \"Last n urls\" makes me print out the last n urls.\n" .
+                  "- \"Help me\" makes me print these lines";
     $irc->yield(privmsg => $chan, $helpstr);
 }
 
@@ -224,6 +231,51 @@ sub print_tag ($$$) {
     }
 }
 
+sub trim_leading_newlines ($) {
+    my $str = shift;
+    $str =~ s/\n+//;
+    $str =~ s/^\s+//;
+    return $str;
+}
+
+sub wiki_lookup ($$) {
+    my ($chan, $query) = @_;
+    my $wiki = WWW::Wikipedia->new();
+    my $res = $wiki->search($query);
+    if ($res) {
+        my $string = $res->text_basic();
+        $string = trim_leading_newlines($string);
+        $irc->yield(privmsg => $chan, Text::Stripper::stripof($string, 500, 10, 1, 1) . "\n");
+    } else {
+        $irc->yield(privmsg => $chan, 'Not found');
+    }
+}
+
+sub snatch_url ($$$) {
+    my ($chan, $url, $usrNick) = @_;
+    # Stuff it into the DB
+    my $sth = $dbh->prepare('INSERT INTO urls (nick, source) VALUES (?, ?)');
+    $sth->execute($usrNick, $url);
+    if ($dbh->err()) {
+        halbot_critical("Error inserting data into the database: $DBI::errstr");
+        $irc->yield(shutdown => "SIGBUS");
+    }
+    halbot_info("Got link \"$url\" for $usrNick.");
+}
+
+sub lastnurls ($$) {
+    my ($chan, $lines) = @_;
+    my $sth = $dbh->prepare('SELECT * FROM urls ORDER BY url_id DESC LIMIT ?;');
+    $sth->execute($lines);
+    if ($dbh->err()) {
+        halbot_critical("Error querying data from the database: $DBI::errstr");
+        $irc->yield(shutdown => "SIGBUS");
+    }
+    while (my $url = $sth->fetchrow_hashref) {
+        $irc->yield(privmsg => $chan, "Got $url->{source} for $url->{nick} at $url->{timest}");
+    }
+}
+
 sub bot_start {
     $irc->yield(register => "all");
     $irc->yield(
@@ -252,14 +304,15 @@ sub on_public {
     my $ts = scalar localtime;
     
     my $chan = shift(@{$where}); 
-
+    my $little_flag = 0; #oh flaggie, you so crazy
     #halbot_debug("Got message from $usrNick on $chan");
 
     #image link handling
     if ($msg =~ /^((http|ftp):\/\/.+\.(jpg|jpeg|png|bmp|gif|swf))/i) { #ugly ugly ugly
         snatch_file($chan, $1, $usrNick, $ts);
+        $little_flag = 1;
     }
-    if ($msg =~ /^Last (\d+) files, HAL/i) {
+    if ($msg =~ /^Last (\d+) files/i) {
         lastnlines($chan, $1);
     }
     #help req
@@ -285,6 +338,18 @@ sub on_public {
     #print tag
     if ($msg =~ /^@(.+)/i) {
         print_tag($chan, $usrNick, $1);
+    }
+    if ($msg =~ /^!wiki (.+)/i) {
+        wiki_lookup($chan, $1);
+    }
+    #url snatch
+    if ($msg =~ /^((http:|ftp:|www.).+)/i) {
+        if ($little_flag == 0) {
+            snatch_url($chan, $1, $usrNick);
+        }
+    }
+    if ($msg =~ /^Last (\d+) urls/i) {
+        lastnurls($chan, $1);
     }
     #kill code
     if ($msg =~ /^Open the pod bay doors, HAL/i) {

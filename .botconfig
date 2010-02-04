@@ -1,13 +1,15 @@
 ---
 channels:
-  - name: '#foodev'
-nick: halbot
+  - name: '#foo'
+  - name: '#ecl'
+  - name: '#cg-dev'
+nick: hal9k
 nickserv_pass: dd3b57f9e6c105c30ff
 username: computer
 ircname: Hello, Dave
 port: 7001
 server: irc.ecl-labs.org
 ssl: yes
-destdir: ./files
-picurl: http://vanity.ecl-labs.org/~sasoh/pile
+destdir: /home/hal/public_html/files
+picurl: http://vanity.ecl-labs.org/~hal/files
 botdb: ./db/bot.db
