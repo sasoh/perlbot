@@ -251,6 +251,42 @@ sub wiki_lookup ($$) {
     }
 }
 
+
+# XXX - stuff needed to make this work
+# - SQLite database with hashes of the $message so we can check for duplicates and new ones
+# - A timer to trigger this every whatever seconds, as configured in the botconfig
+
+my $feed_tmp;
+sub get_bb_feed ($) {
+    my $feed = shift;
+
+    my $ua = LWP::UserAgent::POE->new(
+            agent       => 'Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10_6_2; en-us) AppleWebKit/531.21.8 (KHTML, like Gecko) Version/4.0.4 Safari/531.21.10',
+            timeout     => 10
+            );
+
+    my $resp = $ua->get($feed);
+
+    my $rss = XML::RSS->new;
+    $rss->parse($resp);
+
+    my @new_feeds;
+    foreach my $item (@{$rss->{'items'}}) {
+        map { $item->{$_} =~ s/([\n\t])//g; $item->{$_} =~ tr/  / /ds; } keys %{$item};
+
+        my $message = $item->{title};
+        $message =~ s/^ | $//g;
+
+        if (defined $item->{p}) {
+            $message .= " - $item->{p}";
+        }
+
+        push(@new_feeds, $message);
+    }
+
+    return @new_feeds;
+}
+
 sub snatch_url ($$$) {
     my ($chan, $url, $usrNick) = @_;
     # Stuff it into the DB
@@ -368,6 +404,8 @@ sub on_private {
     $irc->yield(privmsg => $nick => "I dont like this, Dave.");
 }
 
+
+
 halbot_info("/" . "-"x40);
 halbot_info("HAL9000 starting...");
 
@@ -392,3 +430,4 @@ $SIG{INT} = \&intsig;
 $SIG{TERM} = \&intsig;
 $poe_kernel->run();
 exit 0;
+

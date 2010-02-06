@@ -1,9 +1,10 @@
 ---
 channels:
-  - name: '#foo'
-  - name: '#ecl'
-  - name: '#cg-dev'
-nick: hal9k
+  - name: '#foodev'
+    bb_feeds:
+        - url: 'https://bitbucket.org/ecl/rss/feed/?token=
+          refresh: 30
+nick: hal9k-dev
 nickserv_pass: dd3b57f9e6c105c30ff
 username: computer
 ircname: Hello, Dave
